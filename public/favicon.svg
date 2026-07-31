@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- 背景：和風の温かいオレンジの円 -->
+  <circle cx="256" cy="256" r="240" fill="#f97316" />
+  <!-- 縁取りの内円（少し薄めのオレンジ） -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#ffedd5" stroke-width="8" stroke-dasharray="12 12" />
+  
+  <!-- お椀と箸のシルエット（ミニマルな白） -->
+  <!-- お椀の本体 -->
+  <path d="M160 240 C160 340, 352 340, 352 240 Z" fill="#fffefb" />
+  <!-- お椀の高台（底の足） -->
+  <path d="M220 325 L292 325 C292 340, 220 340, 220 325 Z" fill="#ffedd5" />
+  <!-- 湯気（温かさを表現する3本線） -->
+  <path d="M210 190 Q220 160 210 140" fill="none" stroke="#fffefb" stroke-width="8" stroke-linecap="round" />
+  <path d="M256 185 Q266 150 256 130" fill="none" stroke="#fffefb" stroke-width="8" stroke-linecap="round" />
+  <path d="M302 190 Q312 160 302 140" fill="none" stroke="#fffefb" stroke-width="8" stroke-linecap="round" />
+  
+  <!-- お箸 -->
+  <line x1="120" y1="210" x2="380" y2="230" stroke="#fef08a" stroke-width="10" stroke-linecap="round" />
+  <line x1="120" y1="225" x2="380" y2="245" stroke="#fef08a" stroke-width="10" stroke-linecap="round" />
+</svg>
