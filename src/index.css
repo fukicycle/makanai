@@ -37,6 +37,26 @@ input, textarea, select, .text-xs, .text-sm {
   font-size: 16px !important;
 }
 
+/* iOSの極めて特殊な日付入力欄（type="date"）の崩れ・重複枠線をリセットし、美しく均一化します */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 2.6rem;
+  display: inline-flex;
+  align-items: center;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+  line-height: normal;
+  background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* iOS WebKit 内部の日付テキスト配置ズレを左寄せに補正します */
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.5em;
+  padding-left: 0.2rem;
+}
+
 /* Custom Typography mapping so text size defaults can scale smoothly */
 .text-custom-readable {
   font-size: var(--text-readable, 16px) !important;

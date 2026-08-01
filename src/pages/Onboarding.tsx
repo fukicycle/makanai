@@ -204,8 +204,9 @@ export const Onboarding: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-12 gap-2">
-                      <div className="col-span-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-2">
+                      <div className="col-span-1 sm:col-span-4">
+                        <label className="block sm:hidden text-[11px] font-bold text-stone-500 mb-1">お名前</label>
                         <input
                           type="text"
                           placeholder="お名前（例: 自分）"
@@ -214,7 +215,8 @@ export const Onboarding: React.FC = () => {
                           className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white/80 focus:outline-none focus:ring-1 focus:ring-orange-500 text-xs"
                         />
                       </div>
-                      <div className="col-span-5">
+                      <div className="col-span-1 sm:col-span-5">
+                        <label className="block sm:hidden text-[11px] font-bold text-stone-500 mb-1">生年月日</label>
                         <input
                           type="date"
                           value={member.birthDate}
@@ -222,7 +224,8 @@ export const Onboarding: React.FC = () => {
                           className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white/80 focus:outline-none focus:ring-1 focus:ring-orange-500 text-xs font-sans"
                         />
                       </div>
-                      <div className="col-span-3">
+                      <div className="col-span-1 sm:col-span-3">
+                        <label className="block sm:hidden text-[11px] font-bold text-stone-500 mb-1">性別</label>
                         <select
                           value={member.gender}
                           onChange={(e) => handleMemberChange(member.id, 'gender', e.target.value as 'male' | 'female')}

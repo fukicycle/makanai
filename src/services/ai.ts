@@ -1,6 +1,105 @@
 import { GoogleGenAI } from '@google/genai';
 import { MenuData, FamilyMember, CookingEffort } from '../context/AppContext';
 
+// Geminiの構造化出力(Structured Output)を強制するための OpenAPI スキーマ定義
+const menuDataSchema = {
+  type: 'OBJECT',
+  properties: {
+    days: {
+      type: 'ARRAY',
+      description: '1週間分（月曜日から日曜日までの7日間分）の夕食の献立リストでございます。',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          dayName: { type: 'STRING', description: '曜日名（例: "月曜日", "火曜日"など）' },
+          dishName: { type: 'STRING', description: '主菜と汁物の名前（一括表示用。例: "主菜：カレイの煮付け ＆ 汁物：具沢山の豚汁"）' },
+          mainDishName: { type: 'STRING', description: '主菜の名称のみ（例: "カレイの煮付け"）' },
+          soupName: { type: 'STRING', description: '汁物の名称のみ（例: "具沢山の豚汁"）' },
+          calories: { type: 'INTEGER', description: 'この日の夕食の推定必要カロリー（家族全員分の合計目安）' },
+          description: { type: 'STRING', description: '料理人まかなひからの温かいメニューの紹介・栄養解説メッセージでございます。' },
+          ingredients: {
+            type: 'ARRAY',
+            description: 'この日の夕食に必要なすべての材料リストでございます。',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                name: { type: 'STRING', description: '材料名（例: "カレイの切り身", "大根"など）' },
+                amount: { type: 'STRING', description: '分量（例: "4切れ", "1/2本"など）' },
+                category: { type: 'STRING', description: '材料のカテゴリ（例: "野菜", "肉類", "海鮮", "調味料", "その他"など）' }
+              },
+              required: ['name', 'amount', 'category']
+            }
+          },
+          recipeSteps: {
+            type: 'ARRAY',
+            description: '主菜と汁物を合わせた一括の調理手順（配列）でございます。',
+            items: { type: 'STRING' }
+          },
+          mainDishSteps: {
+            type: 'ARRAY',
+            description: '主菜の具体的で極めて丁寧な作り方の手順（配列）でございます。調味料名や分量、火加減などを人間に親切に説明してください。',
+            items: { type: 'STRING' }
+          },
+          soupSteps: {
+            type: 'ARRAY',
+            description: '汁物の具体的で極めて丁寧な作り方の手順（配列）でございます。調味料名や分量、火加減などを人間に親切に説明してください。',
+            items: { type: 'STRING' }
+          },
+          notes: {
+            type: 'ARRAY',
+            description: 'このレシピをおいしく、安全に調理するための注意点やコツ（配列、最低1項目以上）でございます。',
+            items: { type: 'STRING' }
+          }
+        },
+        required: ['dayName', 'dishName', 'mainDishName', 'soupName', 'calories', 'description', 'ingredients', 'recipeSteps', 'mainDishSteps', 'soupSteps', 'notes']
+      }
+    },
+    makeAheadSideDish: {
+      type: 'OBJECT',
+      description: '週末や週の初めに作り置きし、1週間冷蔵庫で保存できる常備菜（副菜）のレシピでございます。',
+      properties: {
+        dishName: { type: 'STRING', description: '常備菜の名称（例: "切り干し大根の煮物"）' },
+        description: { type: 'STRING', description: '常備菜の説明、日持ちさせる保存のコツや合わせ方などの和風トーンでのアドバイスでございます。' },
+        ingredients: {
+          type: 'ARRAY',
+          description: '常備菜に必要な材料リストでございます。',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              name: { type: 'STRING' },
+              amount: { type: 'STRING' },
+              category: { type: 'STRING' }
+            },
+            required: ['name', 'amount', 'category']
+          }
+        },
+        recipeSteps: {
+          type: 'ARRAY',
+          description: '常備菜の丁寧な作り方の調理手順でございます。',
+          items: { type: 'STRING' }
+        }
+      },
+      required: ['dishName', 'description', 'ingredients', 'recipeSteps']
+    },
+    shoppingList: {
+      type: 'ARRAY',
+      description: '1週間分のすべてのレシピ（常備菜を含む）の材料から、重複する分量を合算してカテゴリ別に整理したおまとめ買い物リストでございます。',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          id: { type: 'STRING', description: '重複しないランダムで一意なID（例: "item_01"）' },
+          name: { type: 'STRING', description: '材料名（重複なく合算・マージされたもの）' },
+          amount: { type: 'STRING', description: '1週間分を合算した必要総分量（例: "計500g", "大さじ6"など）' },
+          category: { type: 'STRING', description: '材料カテゴリ（野菜、肉類、海鮮、調味料、その他など）' },
+          checked: { type: 'BOOLEAN', description: 'お買い物のチェックボックス状態（必ず false を初期値に設定してください）' }
+        },
+        required: ['id', 'name', 'amount', 'category', 'checked']
+      }
+    }
+  },
+  required: ['days', 'makeAheadSideDish', 'shoppingList']
+};
+
 /**
  * ユーザーの家族構成、目標カロリー、こしらえ加減（調理の手間）、
  * および冷蔵庫の余り物に基づいて、Gemini API（gemini-3.5-flash）を呼び出し、
@@ -62,12 +161,14 @@ export async function generateWeeklyMenu(
 
   // 毎日必ず「主菜」と「汁物」をセットにすることの義務化
   const structureInstruction = `
-- **「一汁一菜（主菜＋汁物）」の必須化**: 毎日の夕食（daysの各要素）は、必ず【主菜：〇〇（お肉、お魚、お豆腐などのメインおかず）】と【汁物：〇〇（お味噌汁、おすまし、和風スープなど）】の両方をセットにした献立（dishName）にしてください。
-- 時短モード（さっと）や簡単モードであっても、手間のかからないお汁（例：乾燥わかめとネギの即席すまし汁、レンジで作るキャベツのお味噌汁など）を必ず汁物として添え、メイン1品だけで終わらせず、バランスの取れた温かい食事を構成してください。
-- **主菜と汁物の分離**: 主菜名のみ（例: "カレイの煮付け"）を \`mainDishName\` に、汁物名のみ（例: "具沢山の豚汁"）を \`soupName\` に分けて格納してください。
-- **調理手順の分離**: 主菜の作り方手順を \`mainDishSteps\` に、汁物の作り方手順を \`soupSteps\` にそれぞれ分けて記述（配列）してください。（全体の一括手順は \`recipeSteps\` に格納してください）
-- **注意点の記述**: レシピには必ず調理上の注意点やコツ、アレルギーや火加減などの配慮事項（例: 「煮崩れしやすいので、あまり触らないこと」「味噌を溶いた後は沸騰させない」など）を2〜3項目ほど、\`notes\`（文字列の配列）に含めてください。
-`;
+  - **「一汁一菜（主菜＋汁物）」の必須化**: 毎日の夕食（daysの各要素）は、必ず【主菜：〇〇（お肉、お魚、お豆腐などのメインおかず）】と【汁物：〇〇（お味噌汁、おすまし、和風スープなど）】の両方をセットにした献立（dishName）にしてください。
+  - 時短モード（さっと）や簡単モードであっても、手間のかからないお汁（例：乾燥わかめとネギの即席すまし汁、レンジで作るキャベツのお味噌汁など）を必ず汁物として添え、メイン1品だけで終わらせず、バランスの取れた温かい食事を構成してください。
+  - **主菜と汁物の分離**: 主菜名のみ（例: "カレイの煮付け"）を \`mainDishName\` に、汁物名のみ（例: "具沢山の豚汁"）を \`soupName\` に分けて格納してください。
+  - **人間に対して親身かつ丁寧なレシピ解説の徹底**: 調理手順（\`mainDishSteps\` および \`soupSteps\`）は、人間が実際に台所で迷わず作れるよう、極めて丁寧かつ親身に一歩一歩解説してください。
+  - **主菜と汁物の調味料の明確な分離指定（非常に重要）**: 決して「調味料を入れる」といった曖昧な書き方はしないでください。「主菜用の醤油（大さじ2）とみりん（大さじ1）を加えます」「お味噌汁用のだし汁（400ml）を沸騰させ、仕上げに味噌を溶き入れます」のように、**どの段階で、主菜用・汁物用のどちらの調味料・材料を、どれだけの分量入れるのか**を、手順の中に具体名と分量を明記して解説してください。
+  - **調理手順の分離**: 主菜の作り方手順を \`mainDishSteps\` に、汁物の作り方手順を \`soupSteps\` にそれぞれ分けて記述（配列）してください。（全体の一括手順は \`recipeSteps\` に格納してください）
+  - **注意点の記述**: レシピには必ず調理上の注意点やコツ、アレルギーや火加減などの配慮事項（例: 「カレイは身が崩れやすいので、落とし蓋をし、極力箸で触らずに煮るのが崩れないコツでございます」「味噌の風味を損なわないよう、味噌を入れた後は絶対に沸騰させないでください」など）を2〜3項目ほど、\`notes\`（文字列の配列）に含めてください。
+  `;
 
   // 1週間使い回せる「作り置き常備菜（副菜）」の義務化
   const sideDishInstruction = `
@@ -207,27 +308,60 @@ ${fridgeInstruction}
 }
 `;
 
-  try {
-    // SDKの初期化（タイムアウト時間を十分（120秒）に長くとり、エラーによる中断を防ぎます）
-    const ai = new GoogleGenAI({ 
-      apiKey,
-      httpOptions: {
-        timeout: 120000 // 120秒（ミリ秒単位）
+  let text = '';
+  const maxRetries = 2;
+  let attempt = 0;
+
+  while (attempt <= maxRetries) {
+    try {
+      // SDKの初期化（タイムアウト時間を十分（120秒）に長くとり、エラーによる中断を防ぎます）
+      const ai = new GoogleGenAI({ 
+        apiKey,
+        httpOptions: {
+          timeout: 120000 // 120秒（ミリ秒単位）
+        }
+      });
+
+      // gemini-3.5-flashモデルを使用（構造化出力を有効化し、完璧なJSONを強制します）
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: menuDataSchema as any,
+        },
+      });
+
+      text = response.text || '';
+      break; // 成功したためリトライループを抜けます
+    } catch (err: any) {
+      attempt++;
+      // CORSプレフライトチェック、ハンドシェイク遅延、または一時的な切断による一時的な通信エラー（LoadFailed等）かどうかを判定します
+      const isTransientError = err instanceof Error && (
+        err.message.includes('fetch failed') || 
+        err.message.includes('LoadFailed') || 
+        err.message.includes('Failed to fetch') ||
+        err.message.includes('Load failed') ||
+        err.message.includes('CORS') ||
+        err.message.includes('preflight')
+      );
+
+      const isKeyInvalid = err instanceof Error && (
+        err.message.includes('API_KEY_INVALID') || 
+        err.message.includes('API key not valid')
+      );
+
+      if (attempt <= maxRetries && (isTransientError || !isKeyInvalid)) {
+        console.warn(`Gemini API 接続試行 ${attempt} 回目が失敗しました（CORSプレフライトまたは初回ハンドシェイク遅延の可能性）。1.5秒後に自動リトライします...`, err);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      } else {
+        throw err; // 最大試行数に達したか、再試行不可（キー無効など）のエラーはそのままスローします
       }
-    });
+    }
+  }
 
-    // gemini-3.5-flashモデルを使用
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction,
-        // JSON形式での出力を保証
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const text = response.text;
+  try {
     if (!text) {
       throw new Error('Geminiからの応答が空でした。再度お試しください。');
     }

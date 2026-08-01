@@ -240,16 +240,6 @@ export const Home: React.FC = () => {
                 <Calendar className="w-3.5 h-3.5" />
                 献立作成日: {new Date(menuData.generatedAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
               </span>
-              <button
-                onClick={() => {
-                  setTempFridgeContents(fridgeContents);
-                  setShowRegenerateModal(true);
-                }}
-                className="flex items-center gap-1 text-orange-600 hover:text-orange-700 transition-colors font-bold font-serif cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                献立を作り直す
-              </button>
             </div>
 
             {generationError && (
@@ -340,7 +330,7 @@ export const Home: React.FC = () => {
       </div>
 
       {/* 画面下部に浮き上がるFABスタイルの固定アクションピル（コンテナ底部からぴったり沿うように絶対配置し、PC・スマホ問わず理想的な操作位置に固定！） */}
-      {!menuData && (
+      {!menuData ? (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4">
           <button
             type="button"
@@ -361,6 +351,22 @@ export const Home: React.FC = () => {
             )}
           </button>
         </div>
+      ) : (
+        !generating && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4 animate-soft-fade">
+            <button
+              type="button"
+              onClick={() => {
+                setTempFridgeContents(fridgeContents);
+                setShowRegenerateModal(true);
+              }}
+              className="w-full py-3.5 bg-orange-600 hover:bg-orange-700 text-sm font-bold text-white rounded-full shadow-2xl shadow-orange-500/30 hover:shadow-orange-500/40 transition-all flex items-center justify-center gap-2 cursor-pointer border border-white/20 transform hover:scale-[1.02] active:scale-95 duration-200"
+            >
+              <RotateCcw className="w-4 h-4" />
+              献立を作り直す（食材変更）
+            </button>
+          </div>
+        )
       )}
 
       {/* 常備菜詳細モーダル */}
