@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { generateWeeklyMenu } from '../services/ai';
 
 // 家族メンバーの定義
 export interface FamilyMember {
@@ -11,7 +12,7 @@ export interface FamilyMember {
 // 献立（1日分）の定義
 export interface DailyMenu {
   dayName: string; // 例: "月曜日", "火曜日"
-  dishName: string; // 主菜名
+  dishName: string; // 主菜名（一括表示用）
   calories: number; // この日の夕食の推定総カロリー（家族全員分）
   description: string; // メニューの説明、なぜバランスが良いかなど
   ingredients: {
@@ -19,7 +20,12 @@ export interface DailyMenu {
     amount: string; // 例: "200g", "2片"
     category: string; // 例: "野菜", "肉類", "調味料"
   }[];
-  recipeSteps: string[]; // 調理手順の配列
+  recipeSteps: string[]; // 調理手順の配列（一括表示用）
+  notes?: string[]; // 調理上の注意点・コツ（新規追加）
+  mainDishName?: string; // 主菜名（新規追加）
+  soupName?: string; // 汁物名（新規追加）
+  mainDishSteps?: string[]; // 主菜の調理手順（新規追加）
+  soupSteps?: string[]; // 汁物の調理手順（新規追加）
 }
 
 // 買い物リストの項目定義
@@ -54,21 +60,30 @@ export interface MenuData {
 // 調理の手間・こしらえ加減の定義
 export type CookingEffort = 'quick' | 'easy' | 'normal' | 'detailed';
 
+// フォントサイズの定義
+export type FontSize = 'small' | 'normal' | 'large';
+
 // アプリケーション全体のコンテキスト型
 interface AppContextType {
   apiKey: string;
   familyMembers: FamilyMember[];
   cookingEffort: CookingEffort; // こしらえ加減
+  fontSize: FontSize; // フォントサイズ
   menuData: MenuData | null;
   isOnboarded: boolean;
+  generating: boolean; // 献立生成中の状態（バックグラウンド動作可能）
+  generationError: string | null; // 献立生成中のエラー
   saveApiKey: (key: string) => void;
   saveFamilyMembers: (members: FamilyMember[]) => void;
   saveCookingEffort: (effort: CookingEffort) => void; // こしらえ加減の保存
+  saveFontSize: (size: FontSize) => void; // フォントサイズの保存
   saveMenuData: (data: MenuData | null) => void;
   toggleShoppingItem: (id: string) => void;
   completeOnboarding: () => void;
   resetApp: () => void;
   calculateTargetCalories: () => number;
+  generateMenu: (fridgeContents?: string) => Promise<void>; // バックグラウンド献立生成
+  clearGenerationError: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -78,6 +93,7 @@ const KEYS = {
   API_KEY: 'makanai_api_key',
   FAMILY_MEMBERS: 'makanai_family_members',
   COOKING_EFFORT: 'makanai_cooking_effort',
+  FONT_SIZE: 'makanai_font_size',
   MENU_DATA: 'makanai_menu_data',
   IS_ONBOARDED: 'makanai_is_onboarded',
 };
@@ -91,6 +107,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cookingEffort, setCookingEffort] = useState<CookingEffort>(() => {
     return (localStorage.getItem(KEYS.COOKING_EFFORT) as CookingEffort) || 'normal';
   });
+  const [fontSize, setFontSize] = useState<FontSize>(() => {
+    return (localStorage.getItem(KEYS.FONT_SIZE) as FontSize) || 'normal';
+  });
   const [menuData, setMenuData] = useState<MenuData | null>(() => {
     const saved = localStorage.getItem(KEYS.MENU_DATA);
     return saved ? JSON.parse(saved) : null;
@@ -98,6 +117,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isOnboarded, setIsOnboarded] = useState<boolean>(() => {
     return localStorage.getItem(KEYS.IS_ONBOARDED) === 'true';
   });
+
+  const [generating, setGenerating] = useState<boolean>(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   // 状態の変更をローカルストレージに同期する効果
   useEffect(() => {
@@ -111,6 +133,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(KEYS.COOKING_EFFORT, cookingEffort);
   }, [cookingEffort]);
+
+  useEffect(() => {
+    localStorage.setItem(KEYS.FONT_SIZE, fontSize);
+  }, [fontSize]);
 
   useEffect(() => {
     if (menuData) {
@@ -128,6 +154,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const saveApiKey = (key: string) => setApiKey(key.trim());
   const saveFamilyMembers = (members: FamilyMember[]) => setFamilyMembers(members);
   const saveCookingEffort = (effort: CookingEffort) => setCookingEffort(effort);
+  const saveFontSize = (size: FontSize) => setFontSize(size);
   const saveMenuData = (data: MenuData | null) => setMenuData(data);
   const completeOnboarding = () => setIsOnboarded(true);
 
@@ -140,13 +167,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMenuData({ ...menuData, shoppingList: updatedList });
   };
 
+  const clearGenerationError = () => setGenerationError(null);
+
+  const generateMenu = async (fridgeContents?: string) => {
+    if (!apiKey) {
+      setGenerationError('APIキーが設定されていません。設定画面で登録してください。');
+      return;
+    }
+    setGenerating(true);
+    setGenerationError(null);
+    try {
+      const targetCal = calculateTargetCalories();
+      const data = await generateWeeklyMenu(
+        apiKey,
+        familyMembers,
+        targetCal,
+        cookingEffort,
+        fridgeContents
+      );
+      setMenuData(data);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setGenerationError(err.message);
+      } else {
+        setGenerationError('献立の生成中に予期せぬ不具合が発生いたしました。');
+      }
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   // アプリ全体の初期化
   const resetApp = () => {
     localStorage.clear();
     setApiKey('');
     setFamilyMembers([]);
+    setCookingEffort('normal');
+    setFontSize('normal');
     setMenuData(null);
     setIsOnboarded(false);
+    setGenerating(false);
+    setGenerationError(null);
   };
 
   // 年齢計算ヘルパー
@@ -197,16 +258,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         apiKey,
         familyMembers,
         cookingEffort,
+        fontSize,
         menuData,
         isOnboarded,
+        generating,
+        generationError,
         saveApiKey,
         saveFamilyMembers,
         saveCookingEffort,
+        saveFontSize,
         saveMenuData,
         toggleShoppingItem,
         completeOnboarding,
         resetApp,
         calculateTargetCalories,
+        generateMenu,
+        clearGenerationError,
       }}
     >
       {children}

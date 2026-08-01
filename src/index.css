@@ -4,6 +4,66 @@
   --font-serif: "Klee One", Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
+/* Font Size Themes - すべての文字列の最低ラインを16pxとし、iPhone等での自動拡大を防ぎ視認性を最大化します */
+.app-font-small {
+  --text-readable: 16px;
+  --text-small: 16px;
+  --text-xs: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --font-weight-reading: 400;
+}
+
+.app-font-normal {
+  --text-readable: 17px;
+  --text-small: 16px;
+  --text-xs: 16px;
+  --text-lg: 19px;
+  --text-xl: 22px;
+  --font-weight-reading: 400;
+}
+
+.app-font-large {
+  --text-readable: 21px;
+  --text-small: 18px;
+  --text-xs: 17px;
+  --text-lg: 24px;
+  --text-xl: 28px;
+  --font-weight-reading: 600;
+}
+
+/* すべてのテキスト、特に入力欄（input, textarea, select）の下限を16pxに強制上書きします */
+input, textarea, select, .text-xs, .text-sm {
+  font-size: 16px !important;
+}
+
+/* Custom Typography mapping so text size defaults can scale smoothly */
+.text-custom-readable {
+  font-size: var(--text-readable, 16px) !important;
+  font-weight: var(--font-weight-reading, 400) !important;
+}
+
+.text-custom-small {
+  font-size: var(--text-small, 16px) !important;
+}
+
+.text-custom-xs {
+  font-size: var(--text-xs, 16px) !important;
+}
+
+.text-custom-lg {
+  font-size: var(--text-lg, 18px) !important;
+}
+
+.text-custom-xl {
+  font-size: var(--text-xl, 20px) !important;
+}
+
+/* Apply base readable size to main content body text if not overridden */
+.app-body-text {
+  font-size: var(--text-readable, 16px);
+}
+
 /* 独自の和風スタイルとGlassmorphism */
 .glass {
   background: rgba(255, 254, 250, 0.6);
@@ -48,6 +108,30 @@
 
 .animate-soft-fade {
   animation: soft-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modal-overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-content-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-overlay-fade-in {
+  animation: modal-overlay-fade-in 0.2s ease-out forwards;
+}
+
+.animate-modal-scale-in {
+  animation: modal-content-scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* カスタムスクロールバー（和風にひかえめに） */

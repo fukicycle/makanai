@@ -29,3 +29,6 @@ dist-ssr/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+tsconfig.app.tsbuildinfo
+tsconfig.node.tsbuildinfo
